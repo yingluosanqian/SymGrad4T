@@ -1,13 +1,8 @@
 
-import os
-import sys
-
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
 import pytest
 import sympy as sp
 from sympy import Symbol
-from tensor import Tensor
+from symgrad4t import Tensor
 
 
 def test_tensor_shape():

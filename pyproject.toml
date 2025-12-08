@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "symgrad4t"
+version = "0.1.0"
+description = "A tiny symbolic autodiff demo built on Sympy."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "sympy>=1.13",
+]
+authors = [{ name = "yihanc", email = "yingluosanqian@gmail.com" }]
+keywords = ["autodiff", "symbolic", "sympy", "tensor"]
+
+[project.urls]
+Homepage = "https://github.com/yingluosanqian/SymGrad4T"
+Repository = "https://github.com/yingluosanqian/SymGrad4T"
+
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["symgrad4t*"]
+exclude = ["symgrad4t.tests*"]
+
+[tool.setuptools.package-dir]
+"" = "python"

@@ -1,5 +1,5 @@
 from typing import List
-from symbol import compute as sc
+from .symbol import compute as sc
 
 
 class Tensor:
