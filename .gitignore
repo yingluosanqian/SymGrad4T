@@ -1,3 +1,4 @@
 *.pyc
 .pytest_cache
 symgrad4t.egg-info
+dist/
