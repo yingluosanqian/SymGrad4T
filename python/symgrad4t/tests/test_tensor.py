@@ -161,8 +161,8 @@ def test_latex_output():
     g = Symbol("G")
     z._grads.append(g)
     z.backward()
-    # latex uses node name for display
-    assert z.latex_expr() == sp.latex(sp.symbols(z.name), mul_symbol="\\cdot ")
+    # latex uses composed expression with parentheses for clarity
+    assert z.latex_expr() == "\\left(x\\cdot y\\right)+\\left(x\\right)"
     # latex of grad
     assert z.latex_grad() == sp.latex(g)
 
@@ -210,5 +210,31 @@ def test_matmul():
     z._grads.append(g)
     z.backward()
     assert z.shape == (2, 4)
-    assert str(a._grad) == "G @ B^T"
-    assert str(b._grad) == "A^T @ G"
+    assert str(a._grad) == "(G) @ ((B)^T)"
+    assert str(b._grad) == "((A)^T) @ (G)"
+
+
+def test_sigmoid():
+    x = Tensor("x", 3)
+    z = x.sigmoid()
+    g = Symbol("G")
+    z._grads.append(g)
+    z.backward()
+    sig = 1 / (1 + sp.exp(-x.expr))
+    assert sp.simplify(z.expr - sig) == 0
+    expected_grad = g * sig * (1 - sig)
+    assert sp.simplify(x._grad - expected_grad) == 0
+
+
+def test_silu():
+    x = Tensor("x", 3)
+    z = x.silu()
+    g = Symbol("G")
+    z._grads.append(g)
+    z.backward()
+    sig = 1 / (1 + sp.exp(-x.expr))
+    assert sp.simplify(z.expr - x.expr * sig) == 0
+    # SiLU backward includes path through the internal sigmoid:
+    # main: g*(sig + x*sig*(1-sig)), plus sigmoid branch: g*x*sig*(1-sig)
+    expected_grad = g * (sig + 2 * x.expr * sig * (1 - sig))
+    assert sp.simplify(x._grad - expected_grad) == 0

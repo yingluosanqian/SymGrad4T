@@ -16,3 +16,11 @@ def softmax(logits: Tensor, dim: int = -1, name: str | None = None):
 
 def cross_entropy(logits: Tensor, target: Tensor, dim: int = -1, name: str | None = None):
     return CrossEntropy(logits, target, dim=dim, name=name)
+
+
+def silu(x: Tensor, name: str | None = None):
+    out = x.silu()
+    if name is not None:
+        out.name = name
+        out.display_expr = sc.symbol(name)
+    return out

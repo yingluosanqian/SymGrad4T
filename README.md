@@ -1,7 +1,7 @@
 SymGrad4T
 =========
 
-一个用 Sympy 做符号表达的极简自动求导/张量广播示例，当前版本 **v0.2.0**。已支持经典三层 MLP 的符号反向传播（示例见 `examples/mlp.py`），打印出的 LaTeX 可直接粘贴到 https://www.latexlive.com/ 查看。
+一个用 Sympy 做符号表达的极简自动求导/张量广播示例，当前版本 **v0.2.1**。已支持经典三层 MLP 的符号反向传播（示例见 `examples/mlp.py`），打印出的 LaTeX 可直接粘贴到 https://www.latexlive.com/ 查看。
 
 安装
 ----
@@ -27,6 +27,12 @@ MLP 梯度示例
 
 ![MLP Grad](media/mlp_grad.png)
 
+Qwen2 MLP 梯度示例
+------------------
+下图为 `examples/qwen2_mlp.py` 生成的 Qwen2 风格 MLP 梯度表达式（截自 LaTeX 渲染）：
+
+![Qwen2 MLP Grad](media/Qwen2mlp_grad.png)
+
 已支持的 OP / 功能
 ------------------
 - 元素级：`Add` / `Sub` / `Mul` / `Div`
@@ -37,4 +43,3 @@ MLP 梯度示例
 - 非线性：`Max` / `ReLU` / `Softmax`
 - 损失：`CrossEntropy`（内置 Softmax+CE 简化）
 - 工具：`Tensor.latex_expr()` / `Tensor.latex_grad()`（乘号用 `\cdot` 提高可读性）
-- 其他：`MatMul` / `Transpose` / `Max` / `ReLU` / `Softmax` / `CrossEntropy`

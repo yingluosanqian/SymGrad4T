@@ -10,11 +10,11 @@ class MatMulOp(sp.Function):
 
     def _sympystr(self, printer):
         lhs, rhs = self.args
-        return f"{printer.doprint(lhs)} @ {printer.doprint(rhs)}"
+        return f"({printer.doprint(lhs)}) @ ({printer.doprint(rhs)})"
 
     def _latex(self, printer):
         lhs, rhs = self.args
-        return f"{printer._print(lhs)} @{printer._print(rhs)}"
+        return f"\\left({printer._print(lhs)}\\right) @ \\left({printer._print(rhs)}\\right)"
 
 
 class BroadcastOp(sp.Function):
@@ -63,6 +63,63 @@ class ReLUOp(sp.Function):
         return f"\\operatorname{{ReLU}}\\left({printer._print(expr)}\\right)"
 
 
+class AddOp(sp.Function):
+    @classmethod
+    def eval(cls, lhs, rhs):
+        return None
+
+    def _sympystr(self, printer):
+        lhs, rhs = self.args
+        return f"({printer.doprint(lhs)}) + ({printer.doprint(rhs)})"
+
+    def _latex(self, printer, **kwargs):
+        lhs, rhs = self.args
+        return f"\\left({printer._print(lhs)}\\right)+\\left({printer._print(rhs)}\\right)"
+
+
+class SubOp(sp.Function):
+    @classmethod
+    def eval(cls, lhs, rhs):
+        return None
+
+    def _sympystr(self, printer):
+        lhs, rhs = self.args
+        return f"({printer.doprint(lhs)}) - ({printer.doprint(rhs)})"
+
+    def _latex(self, printer, **kwargs):
+        lhs, rhs = self.args
+        return f"\\left({printer._print(lhs)}\\right)-\\left({printer._print(rhs)}\\right)"
+
+
+class DivOp(sp.Function):
+    @classmethod
+    def eval(cls, lhs, rhs):
+        return None
+
+    def _sympystr(self, printer):
+        lhs, rhs = self.args
+        return f"({printer.doprint(lhs)}) / ({printer.doprint(rhs)})"
+
+    def _latex(self, printer, **kwargs):
+        lhs, rhs = self.args
+        return f"\\frac{{{printer._print(lhs)}}}{{{printer._print(rhs)}}}"
+
+
+class SigmoidOp(sp.Function):
+    @classmethod
+    def eval(cls, expr):
+        return None
+
+    def _sympystr(self, printer):
+        (expr,) = self.args
+        return f"Sigmoid({printer.doprint(expr)})"
+
+    def _latex(self, printer, **kwargs):
+        (expr,) = self.args
+        # Use Greek sigma for logistic
+        return f"\\sigma\\left({printer._print(expr)}\\right)"
+
+
 class SoftmaxOp(sp.Function):
     @classmethod
     def eval(cls, expr, dim):
@@ -84,11 +141,11 @@ class TransposeOp(sp.Function):
 
     def _sympystr(self, printer):
         (expr,) = self.args
-        return f"{printer.doprint(expr)}^T"
+        return f"({printer.doprint(expr)})^T"
 
     def _latex(self, printer):
         (expr,) = self.args
-        return f"{printer._print(expr)}^{{T}}"
+        return f"\\left({printer._print(expr)}\\right)^{{T}}"
 
 
 def symbol(name: str):
@@ -167,6 +224,26 @@ def transpose(expr: sp.Expr):
 
 def maximum(lhs: sp.Expr, rhs: sp.Expr):
     return sp.Max(lhs, rhs)
+
+
+class DisplaySymbolOp(sp.Function):
+    @classmethod
+    def eval(cls, name):
+        return None
+
+    def _sympystr(self, printer):
+        (name,) = self.args
+        return str(name)
+
+    def _latex(self, printer, **kwargs):
+        (name,) = self.args
+        text = str(name).replace("_", "\\_")
+        return f"\\mathrm{{{text}}}"
+
+
+def display_symbol(name: str):
+    # Keep display as plain Symbol to avoid parsing errors in downstream ops
+    return sp.Symbol(str(name))
 
 
 def heaviside(x: sp.Expr):

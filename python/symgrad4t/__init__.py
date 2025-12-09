@@ -14,8 +14,10 @@ from .tensor import (
     CrossEntropy,
     Broadcast,
     ReLU,
+    Sigmoid,
+    SiLU,
 )
-from .func import linear, softmax, cross_entropy
+from .func import linear, softmax, cross_entropy, silu
 
 __all__ = [
     "Tensor",
@@ -33,9 +35,12 @@ __all__ = [
     "CrossEntropy",
     "Broadcast",
     "ReLU",
+    "Sigmoid",
+    "SiLU",
     "linear",
     "softmax",
     "cross_entropy",
+    "silu",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"

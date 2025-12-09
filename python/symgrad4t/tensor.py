@@ -61,6 +61,18 @@ class Tensor:
     def relu(self):
         return ReLU(self)
 
+    def sigmoid(self):
+        return Sigmoid(self)
+
+    def silu(self):
+        return SiLU(self)
+
+    def softmax(self, dim: int = -1, name: str = None):
+        return Softmax(self, dim, name=name, display_name=name)
+
+    def softmax(self, dim: int = -1, name: str = None):
+        return Softmax(self, dim, name=name, display_name=name)
+
     def transpose(self):
         return Transpose(self)
 
@@ -127,8 +139,13 @@ class Add(Tensor):
         lhs, rhs, out_shape = _maybe_broadcast(lhs, rhs)
         if name == None:
             name = f"{lhs.name}_add_{rhs.name}"
-        super().__init__(name, *out_shape,
-                         inputs=[lhs, rhs], expr=sc.simplify(lhs.expr + rhs.expr), display_expr=sc.symbol(name))
+        super().__init__(
+            name,
+            *out_shape,
+            inputs=[lhs, rhs],
+            expr=sc.simplify(lhs.expr + rhs.expr),
+            display_expr=sc.AddOp(lhs.display_expr, rhs.display_expr),
+        )
         self.lhs = lhs
         self.rhs = rhs
 
@@ -152,8 +169,13 @@ class Sub(Tensor):
         lhs, rhs, out_shape = _maybe_broadcast(lhs, rhs)
         if name == None:
             name = f"{lhs.name}_sub_{rhs.name}"
-        super().__init__(name, *out_shape,
-                         inputs=[lhs, rhs], expr=sc.subtract(lhs.expr, rhs.expr), display_expr=sc.symbol(name))
+        super().__init__(
+            name,
+            *out_shape,
+            inputs=[lhs, rhs],
+            expr=sc.subtract(lhs.expr, rhs.expr),
+            display_expr=sc.SubOp(lhs.display_expr, rhs.display_expr),
+        )
         self.lhs = lhs
         self.rhs = rhs
 
@@ -177,8 +199,14 @@ class Mul(Tensor):
         lhs, rhs, out_shape = _maybe_broadcast(lhs, rhs)
         if name == None:
             name = f"{lhs.name}_mul_{rhs.name}"
-        super().__init__(name, *out_shape,
-                         inputs=[lhs, rhs], expr=sc.multiply(lhs.expr, rhs.expr), display_expr=sc.symbol(name))
+        super().__init__(
+            name,
+            *out_shape,
+            inputs=[lhs, rhs],
+            expr=sc.multiply(lhs.expr, rhs.expr),
+            # For display, show the actual product instead of a synthetic symbol to avoid odd subscripts
+            display_expr=sc.multiply(lhs.display_expr, rhs.display_expr),
+        )
         self.lhs = lhs
         self.rhs = rhs
 
@@ -202,8 +230,13 @@ class Div(Tensor):
         lhs, rhs, out_shape = _maybe_broadcast(lhs, rhs)
         if name == None:
             name = f"{lhs.name}_div_{rhs.name}"
-        super().__init__(name, *out_shape,
-                         inputs=[lhs, rhs], expr=sc.divide(lhs.expr, rhs.expr), display_expr=sc.symbol(name))
+        super().__init__(
+            name,
+            *out_shape,
+            inputs=[lhs, rhs],
+            expr=sc.divide(lhs.expr, rhs.expr),
+            display_expr=sc.DivOp(lhs.display_expr, rhs.display_expr),
+        )
         self.lhs = lhs
         self.rhs = rhs
 
@@ -240,7 +273,7 @@ class Power(Tensor):
             name = f"{lhs.name}_pow_{rhs.name}" if rhs_is_tensor else f"{lhs.name}_pow_const"
         expr = sc.power(lhs.expr, rhs_expr)
         inputs = [lhs, rhs] if rhs_is_tensor else [lhs]
-        super().__init__(name, *out_shape, inputs=inputs, expr=expr, display_expr=sc.symbol(name))
+        super().__init__(name, *out_shape, inputs=inputs, expr=expr, display_expr=sc.display_symbol(name))
         self.lhs = lhs
         self.rhs = rhs if rhs_is_tensor else None
         self.rhs_expr = rhs_expr
@@ -266,7 +299,7 @@ class Sqrt(Tensor):
         if name is None:
             name = f"{src.name}_sqrt"
         expr = sc.sqrt(src.expr)
-        super().__init__(name, *src.shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
+        super().__init__(name, *src.shape, inputs=[src], expr=expr, display_expr=sc.display_symbol(name))
         self.src = src
 
     def backward(self):
@@ -288,7 +321,7 @@ class MatMul(Tensor):
         if name is None:
             name = f"{lhs.name}_matmul_{rhs.name}"
         expr = sc.matmul(lhs.expr, rhs.expr)
-        super().__init__(name, *out_shape, inputs=[lhs, rhs], expr=expr, display_expr=sc.symbol(name))
+        super().__init__(name, *out_shape, inputs=[lhs, rhs], expr=expr, display_expr=sc.display_symbol(name))
         self.lhs = lhs
         self.rhs = rhs
 
@@ -310,7 +343,7 @@ class Transpose(Tensor):
             name = f"{src.name}_T"
         out_shape = src.shape[:-2] + (src.shape[-1], src.shape[-2])
         expr = sc.transpose(src.expr)
-        super().__init__(name, *out_shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
+        super().__init__(name, *out_shape, inputs=[src], expr=expr, display_expr=sc.display_symbol(name))
         self.src = src
 
     def backward(self):
@@ -332,7 +365,7 @@ class Sum(Tensor):
         else:
             out_shape = src.shape[:dim] + src.shape[dim + 1:]
         expr = sc.reduce_sum(src.expr, dim, keepdim=keepdim)
-        super().__init__(name, *out_shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
+        super().__init__(name, *out_shape, inputs=[src], expr=expr, display_expr=sc.display_symbol(name))
         self.src = src
         self.dim = dim
         self.keepdim = keepdim
@@ -351,7 +384,7 @@ class Broadcast(Tensor):
         if name is None:
             name = f"{src.name}_broadcast"
         expr = sc.broadcast(src.expr, target_shape)
-        super().__init__(name, *target_shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
+        super().__init__(name, *target_shape, inputs=[src], expr=expr, display_expr=sc.display_symbol(name))
         self.src = src
         self.target_shape = target_shape
 
@@ -381,7 +414,7 @@ class ReLU(Tensor):
         if name is None:
             name = f"{src.name}_relu"
         expr = sc.relu(src.display_expr)
-        super().__init__(name, *src.shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
+        super().__init__(name, *src.shape, inputs=[src], expr=expr, display_expr=sc.display_symbol(name))
         self.src = src
 
     def backward(self):
@@ -391,20 +424,66 @@ class ReLU(Tensor):
         self.src.backward()
 
 
+class Sigmoid(Tensor):
+    def __init__(self, src: Tensor, name: str = None, display_name: str = None):
+        if name is None:
+            name = f"{src.name}_sigmoid"
+        expr = sc.divide(1, 1 + sc.exp(sc.negative(src.expr)))
+        display_expr = (
+            sc.symbol(display_name)
+            if display_name is not None
+            else sc.SigmoidOp(src.display_expr)
+        )
+        super().__init__(name, *src.shape, inputs=[src], expr=expr, display_expr=display_expr)
+        self.src = src
+        self.sig_expr = expr
+
+    def backward(self):
+        self._grad = sc.accumulate(self._grads)
+        grad = sc.multiply(self._grad, sc.multiply(self.sig_expr, sc.subtract(1, self.sig_expr)))
+        self.src._grads.append(grad)
+        self.src.backward()
+
+
+class SiLU(Tensor):
+    def __init__(self, src: Tensor, name: str = None):
+        if name is None:
+            name = f"{src.name}_silu"
+        sig = Sigmoid(src)
+        expr = sc.multiply(src.expr, sig.expr)
+        super().__init__(name, *src.shape, inputs=[src, sig], expr=expr, display_expr=sc.symbol(name))
+        self.src = src
+        self.sig = sig
+        self.sig_expr = sig.expr
+
+    def backward(self):
+        self._grad = sc.accumulate(self._grads)
+        # d(x * sig) = sig + x * sig * (1 - sig)
+        term = sc.multiply(self.src.display_expr, sc.multiply(self.sig_expr, sc.subtract(1, self.sig_expr)))
+        src_grad = sc.multiply(self._grad, self.sig_expr + term)
+        # propagate to src and sig
+        self.src._grads.append(src_grad)
+        self.sig._grads.append(sc.multiply(self._grad, self.src.display_expr))
+        self.src.backward()
+        self.sig.backward()
 class Softmax(Tensor):
-    def __init__(self, src: Tensor, dim: int = -1, name: str = None):
+    def __init__(self, src: Tensor, dim: int = -1, name: str = None, display_name: str = None):
         rank = len(src.shape)
         dim = dim + rank if dim < 0 else dim
         if dim < 0 or dim >= rank:
             raise ValueError(f"Invalid dim {dim} for shape {src.shape}")
-        if name is None:
-            name = f"{src.name}_softmax_dim{dim}"
+        auto_name = name if name is not None else f"{src.name}_softmax_dim{dim}"
         exp_x = sc.exp(src.display_expr)
         sum_exp = sc.reduce_sum(exp_x, dim, keepdim=True)
-        # Avoid aggressive simplify to keep non-comparable symbolic terms intact
         expr = exp_x / sum_exp
-        # 展示时用节点名（如 probs），避免在公式里展开 exp/sum
-        super().__init__(name, *src.shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
+        # Prefer explicit display_name; otherwise if a name is provided, use it for display.
+        if display_name is not None:
+            display_expr = sc.symbol(display_name)
+        elif auto_name is not None:
+            display_expr = sc.symbol(auto_name)
+        else:
+            display_expr = sc.SoftmaxOp(src.display_expr, dim)
+        super().__init__(auto_name, *src.shape, inputs=[src], expr=expr, display_expr=display_expr)
         self.src = src
         self.dim = dim
 
@@ -426,7 +505,7 @@ class Max(Tensor):
         if name is None:
             name = f"{lhs.name}_max_{rhs.name}"
         expr = sc.maximum(lhs.display_expr, rhs.display_expr)
-        super().__init__(name, *out_shape, inputs=[lhs, rhs], expr=expr, display_expr=sc.symbol(name))
+        super().__init__(name, *out_shape, inputs=[lhs, rhs], expr=expr, display_expr=sc.display_symbol(name))
         self.lhs = lhs
         self.rhs = rhs
 
@@ -453,7 +532,7 @@ class CrossEntropy(Tensor):
             name = f"{logits.name}_cross_entropy"
         # -sum(target * log(softmax), dim)
         expr = sc.negative(sc.reduce_sum(sc.multiply(target.expr, sc.log(self.softmax.expr)), dim, keepdim=False))
-        super().__init__(name, *out_shape, inputs=[self.softmax, target], expr=expr, display_expr=sc.symbol(name))
+        super().__init__(name, *out_shape, inputs=[self.softmax, target], expr=expr, display_expr=sc.display_symbol(name))
         self.target = target
         self.dim = dim
 
