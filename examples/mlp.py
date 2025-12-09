@@ -29,11 +29,18 @@ def main():
     loss._grads.append(Symbol("G"))
     loss.backward()
 
-    print("Loss expr:", loss.latex_expr())
-    print()
-    print("Grad w.r.t w1:", w1.latex_grad())
-    print()
-    print("Grad w.r.t w2:", w2.latex_grad())
+    loss_tex = loss.latex_expr()
+    w1_tex = w1.latex_grad()
+    w2_tex = w2.latex_grad()
+
+    block = f"""\\begin{{align*}}
+\\text{{Loss expr}} &= {loss_tex}\\\\
+\\text{{Grad w.r.t. }} w1 &= {w1_tex}\\\\
+\\text{{Grad w.r.t. }} w2 &= {w2_tex}
+\\end{{align*}}"""
+
+    print("LaTeX block (可直接粘贴到 https://www.latexlive.com/ ):")
+    print(block)
     print()
     print("将输出的 LaTeX 粘贴到 https://www.latexlive.com/ 查看公式效果")
 
