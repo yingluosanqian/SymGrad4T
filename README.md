@@ -21,6 +21,12 @@ SymGrad4T
 - `python examples/matrix_sum.py`
 - `python examples/mlp.py`（三层 MLP 符号反向）
 
+MLP 梯度示例
+------------
+下图为 `examples/mlp.py` 生成的三层 MLP 梯度表达式（截自 LaTeX 渲染）：
+
+![MLP Grad](media/mlp_grad.png)
+
 已支持的 OP / 功能
 ------------------
 - 元素级：`Add` / `Sub` / `Mul` / `Div`
