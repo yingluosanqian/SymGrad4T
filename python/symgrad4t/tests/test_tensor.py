@@ -69,7 +69,7 @@ def test_tensor_power():
     expected_x_grad = g * y.expr * x.expr ** (y.expr - 1)
     expected_y_grad = g * (x.expr ** y.expr) * sp.log(x.expr)
     assert sp.simplify(x._grad - expected_x_grad) == 0
-    assert sp.simplify(y._grad - expected_y_grad) == 0
+    assert sp.simplify(y._grad - expected_y_grad.subs({x.expr ** y.expr: z.display_expr})) == 0
 
 
 def test_tensor_sqrt():
@@ -136,8 +136,8 @@ def test_broadcast_add():
     z.backward()
     assert z.shape == (2, 3)
     assert z._grad == g
-    assert str(x._grad) == "SumDim(G, 1, 1)"
-    assert str(y._grad) == "SumDim(G, 0, 1)"
+    assert str(x._grad) == "Σ(dim=1, keepdim=True)[G]"
+    assert str(y._grad) == "Σ(dim=0, keepdim=True)[G]"
 
 
 def test_add_scalar_symbol():
@@ -151,7 +151,7 @@ def test_add_scalar_symbol():
     assert z._grad == g
     assert x._grad == g
     # scalar grad sums over broadcasted axis
-    assert str(a._grad) == "SumDim(G, 0, 1)"
+    assert str(a._grad) == "Σ(dim=0, keepdim=True)[G]"
 
 
 def test_latex_output():
@@ -161,7 +161,54 @@ def test_latex_output():
     g = Symbol("G")
     z._grads.append(g)
     z.backward()
-    # latex of expr should match sympy's rendering
-    assert z.latex_expr() == sp.latex(z.expr)
+    # latex uses node name for display
+    assert z.latex_expr() == sp.latex(sp.symbols(z.name), mul_symbol="\\cdot ")
     # latex of grad
     assert z.latex_grad() == sp.latex(g)
+
+
+def test_max_tensor_tensor():
+    x = Tensor("x", 2)
+    y = Tensor("y", 2)
+    z = x.max(y)
+    g = Symbol("G")
+    z._grads.append(g)
+    z.backward()
+    assert z._grad == g
+    assert str(x._grad) == "G*Heaviside(x - y, 0.5)"
+    assert str(y._grad) == "G*Heaviside(-x + y, 0.5)"
+
+
+def test_max_tensor_scalar():
+    x = Tensor("x", 3)
+    z = x.max(0)
+    g = Symbol("G")
+    z._grads.append(g)
+    z.backward()
+    assert z._grad == g
+    zero_broadcast = sp.symbols("0_broadcast")
+    assert sp.simplify(x._grad.subs({zero_broadcast: 0}) - g * sp.Heaviside(x.expr, 0.5)) == 0
+
+
+def test_relu():
+    x = Tensor("x", 3)
+    z = x.relu()
+    g = Symbol("G")
+    z._grads.append(g)
+    z.backward()
+    assert z._grad == g
+    expected = g * sp.Piecewise((0, x.expr <= 0), (1, True))
+    assert str(z.expr) == "ReLU(x)"
+    assert sp.simplify(x._grad - expected) == 0
+
+
+def test_matmul():
+    a = Tensor("A", 2, 3)
+    b = Tensor("B", 3, 4)
+    z = a @ b
+    g = Symbol("G")
+    z._grads.append(g)
+    z.backward()
+    assert z.shape == (2, 4)
+    assert str(a._grad) == "G @ B^T"
+    assert str(b._grad) == "A^T @ G"

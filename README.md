@@ -19,6 +19,7 @@ SymGrad4T
   - RMSNorm：`python examples/rms_norm/rms_norm.py`
   - 矩阵四则运算：`python examples/matrix_arith.py`
   - 矩阵求和：`python examples/matrix_sum.py`
+  - 三层 MLP：`python examples/mlp.py`
 - 输出会打印计算图中张量的梯度（LaTeX 形式），可粘贴到 https://www.latexlive.com/ 查看公式效果。
 
 已支持的 OP
@@ -29,3 +30,4 @@ SymGrad4T
 - 维度求和：`Sum(dim, keepdim=False)`（支持负索引与 keepdim）
 - 广播：`Broadcast` / `Tensor.broadcast_to`
 - LaTeX 输出：`Tensor.latex_expr()` / `Tensor.latex_grad()`
+- 其他：`MatMul` / `Transpose` / `Max` / `ReLU` / `Softmax` / `CrossEntropy`

@@ -3,12 +3,15 @@ from .symbol import compute as sc
 
 
 class Tensor:
+    _registry = []
+
     def __init__(
         self,
         name: str,
         *shape,
         inputs: List["Tensor"] = None,
         expr=None,
+        display_expr=None,
     ):
         self.name = name
         self.shape = shape
@@ -16,6 +19,8 @@ class Tensor:
         self._grad = None
         self.inputs = inputs
         self.expr = expr if expr is not None else sc.symbol(name)
+        self.display_expr = display_expr if display_expr is not None else self.expr
+        Tensor._registry.append(self)
 
     def backward(self):
         self._grad = sc.accumulate(self._grads)
@@ -38,6 +43,9 @@ class Tensor:
     def __pow__(self, rhs):
         return Power(self, rhs)
 
+    def __matmul__(self, rhs):
+        return MatMul(self, rhs)
+
     def sqrt(self):
         return Sqrt(self)
 
@@ -47,13 +55,28 @@ class Tensor:
     def broadcast_to(self, *shape):
         return Broadcast(self, shape)
 
+    def max(self, rhs):
+        return Max(self, rhs)
+
+    def relu(self):
+        return ReLU(self)
+
+    def transpose(self):
+        return Transpose(self)
+
+    @property
+    def T(self):
+        return self.transpose()
+
     def latex_expr(self):
-        return sc.to_latex(self.expr)
+        return sc.to_latex(self.display_expr)
 
     def latex_grad(self):
         if self._grad is None:
             return None
-        return sc.to_latex(self._grad)
+        subs_map = {t.expr: t.display_expr for t in Tensor._registry if t.display_expr != t.expr}
+        pretty_grad = self._grad.subs(subs_map) if subs_map else self._grad
+        return sc.to_latex(pretty_grad)
 
 
 def _as_tensor(val):
@@ -105,7 +128,7 @@ class Add(Tensor):
         if name == None:
             name = f"{lhs.name}_add_{rhs.name}"
         super().__init__(name, *out_shape,
-                         inputs=[lhs, rhs], expr=sc.simplify(lhs.expr + rhs.expr))
+                         inputs=[lhs, rhs], expr=sc.simplify(lhs.expr + rhs.expr), display_expr=sc.symbol(name))
         self.lhs = lhs
         self.rhs = rhs
 
@@ -130,7 +153,7 @@ class Sub(Tensor):
         if name == None:
             name = f"{lhs.name}_sub_{rhs.name}"
         super().__init__(name, *out_shape,
-                         inputs=[lhs, rhs], expr=sc.subtract(lhs.expr, rhs.expr))
+                         inputs=[lhs, rhs], expr=sc.subtract(lhs.expr, rhs.expr), display_expr=sc.symbol(name))
         self.lhs = lhs
         self.rhs = rhs
 
@@ -155,14 +178,14 @@ class Mul(Tensor):
         if name == None:
             name = f"{lhs.name}_mul_{rhs.name}"
         super().__init__(name, *out_shape,
-                         inputs=[lhs, rhs], expr=sc.multiply(lhs.expr, rhs.expr))
+                         inputs=[lhs, rhs], expr=sc.multiply(lhs.expr, rhs.expr), display_expr=sc.symbol(name))
         self.lhs = lhs
         self.rhs = rhs
 
     def backward(self):
         self._grad = sc.accumulate(self._grads)
-        self.lhs._grads.append(sc.multiply(self._grad, self.rhs.expr))
-        self.rhs._grads.append(sc.multiply(self._grad, self.lhs.expr))
+        self.lhs._grads.append(sc.multiply(self._grad, self.rhs.display_expr))
+        self.rhs._grads.append(sc.multiply(self._grad, self.lhs.display_expr))
         self.lhs.backward()
         self.rhs.backward()
 
@@ -180,17 +203,17 @@ class Div(Tensor):
         if name == None:
             name = f"{lhs.name}_div_{rhs.name}"
         super().__init__(name, *out_shape,
-                         inputs=[lhs, rhs], expr=sc.divide(lhs.expr, rhs.expr))
+                         inputs=[lhs, rhs], expr=sc.divide(lhs.expr, rhs.expr), display_expr=sc.symbol(name))
         self.lhs = lhs
         self.rhs = rhs
 
     def backward(self):
         self._grad = sc.accumulate(self._grads)
-        lhs_grad = sc.divide(self._grad, self.rhs.expr)
+        lhs_grad = sc.divide(self._grad, self.rhs.display_expr)
         rhs_grad = sc.negative(
             sc.divide(
-                sc.multiply(self._grad, self.lhs.expr),
-                sc.multiply(self.rhs.expr, self.rhs.expr),
+                sc.multiply(self._grad, self.lhs.display_expr),
+                sc.multiply(self.rhs.display_expr, self.rhs.display_expr),
             )
         )
         self.lhs._grads.append(lhs_grad)
@@ -217,7 +240,7 @@ class Power(Tensor):
             name = f"{lhs.name}_pow_{rhs.name}" if rhs_is_tensor else f"{lhs.name}_pow_const"
         expr = sc.power(lhs.expr, rhs_expr)
         inputs = [lhs, rhs] if rhs_is_tensor else [lhs]
-        super().__init__(name, *out_shape, inputs=inputs, expr=expr)
+        super().__init__(name, *out_shape, inputs=inputs, expr=expr, display_expr=sc.symbol(name))
         self.lhs = lhs
         self.rhs = rhs if rhs_is_tensor else None
         self.rhs_expr = rhs_expr
@@ -226,10 +249,10 @@ class Power(Tensor):
     def backward(self):
         self._grad = sc.accumulate(self._grads)
         # d(lhs^rhs)/dlhs = rhs * lhs^(rhs-1)
-        lhs_grad = sc.multiply(self._grad, sc.multiply(self.rhs_expr, sc.power(self.lhs.expr, sc.subtract(self.rhs_expr, 1))))
+        lhs_grad = sc.multiply(self._grad, sc.multiply(self.rhs_expr, sc.power(self.lhs.display_expr, sc.subtract(self.rhs_expr, 1))))
         # d(lhs^rhs)/drhs = lhs^rhs * ln(lhs)
         if self.rhs_is_tensor:
-            rhs_grad = sc.multiply(self._grad, sc.multiply(self.expr, sc.log(self.lhs.expr)))
+            rhs_grad = sc.multiply(self._grad, sc.multiply(self.display_expr, sc.log(self.lhs.display_expr)))
         self.lhs._grads.append(lhs_grad)
         if self.rhs_is_tensor:
             self.rhs._grads.append(rhs_grad)
@@ -243,15 +266,56 @@ class Sqrt(Tensor):
         if name is None:
             name = f"{src.name}_sqrt"
         expr = sc.sqrt(src.expr)
-        super().__init__(name, *src.shape, inputs=[src], expr=expr)
+        super().__init__(name, *src.shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
         self.src = src
 
     def backward(self):
         self._grad = sc.accumulate(self._grads)
         # d(sqrt(x))/dx = 1 / (2*sqrt(x))
-        denom = sc.multiply(2, sc.sqrt(self.src.expr))
+        denom = sc.multiply(2, sc.sqrt(self.src.display_expr))
         src_grad = sc.divide(self._grad, denom)
         self.src._grads.append(src_grad)
+        self.src.backward()
+
+
+class MatMul(Tensor):
+    def __init__(self, lhs: Tensor, rhs: Tensor, name: str = None):
+        if len(lhs.shape) != 2 or len(rhs.shape) != 2:
+            raise ValueError("MatMul supports 2D tensors only")
+        if lhs.shape[1] != rhs.shape[0]:
+            raise ValueError(f"Incompatible shapes for matmul: {lhs.shape} @ {rhs.shape}")
+        out_shape = (lhs.shape[0], rhs.shape[1])
+        if name is None:
+            name = f"{lhs.name}_matmul_{rhs.name}"
+        expr = sc.matmul(lhs.expr, rhs.expr)
+        super().__init__(name, *out_shape, inputs=[lhs, rhs], expr=expr, display_expr=sc.symbol(name))
+        self.lhs = lhs
+        self.rhs = rhs
+
+    def backward(self):
+        self._grad = sc.accumulate(self._grads)
+        lhs_grad = sc.matmul(self._grad, sc.transpose(self.rhs.display_expr))
+        rhs_grad = sc.matmul(sc.transpose(self.lhs.display_expr), self._grad)
+        self.lhs._grads.append(lhs_grad)
+        self.rhs._grads.append(rhs_grad)
+        self.lhs.backward()
+        self.rhs.backward()
+
+
+class Transpose(Tensor):
+    def __init__(self, src: Tensor, name: str = None):
+        if len(src.shape) < 2:
+            raise ValueError("Transpose expects tensor with rank >= 2")
+        if name is None:
+            name = f"{src.name}_T"
+        out_shape = src.shape[:-2] + (src.shape[-1], src.shape[-2])
+        expr = sc.transpose(src.expr)
+        super().__init__(name, *out_shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
+        self.src = src
+
+    def backward(self):
+        self._grad = sc.accumulate(self._grads)
+        self.src._grads.append(sc.transpose(self._grad))
         self.src.backward()
 
 
@@ -268,7 +332,7 @@ class Sum(Tensor):
         else:
             out_shape = src.shape[:dim] + src.shape[dim + 1:]
         expr = sc.reduce_sum(src.expr, dim, keepdim=keepdim)
-        super().__init__(name, *out_shape, inputs=[src], expr=expr)
+        super().__init__(name, *out_shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
         self.src = src
         self.dim = dim
         self.keepdim = keepdim
@@ -287,7 +351,7 @@ class Broadcast(Tensor):
         if name is None:
             name = f"{src.name}_broadcast"
         expr = sc.broadcast(src.expr, target_shape)
-        super().__init__(name, *target_shape, inputs=[src], expr=expr)
+        super().__init__(name, *target_shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
         self.src = src
         self.target_shape = target_shape
 
@@ -310,3 +374,97 @@ class Broadcast(Tensor):
                 grad = sc.reduce_sum(grad, axis, keepdim=True)
         self.src._grads.append(grad)
         self.src.backward()
+
+
+class ReLU(Tensor):
+    def __init__(self, src: Tensor, name: str = None):
+        if name is None:
+            name = f"{src.name}_relu"
+        expr = sc.relu(src.display_expr)
+        super().__init__(name, *src.shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
+        self.src = src
+
+    def backward(self):
+        self._grad = sc.accumulate(self._grads)
+        mask = sc.relu_grad(self.src.display_expr)
+        self.src._grads.append(sc.multiply(self._grad, mask))
+        self.src.backward()
+
+
+class Softmax(Tensor):
+    def __init__(self, src: Tensor, dim: int = -1, name: str = None):
+        rank = len(src.shape)
+        dim = dim + rank if dim < 0 else dim
+        if dim < 0 or dim >= rank:
+            raise ValueError(f"Invalid dim {dim} for shape {src.shape}")
+        if name is None:
+            name = f"{src.name}_softmax_dim{dim}"
+        exp_x = sc.exp(src.display_expr)
+        sum_exp = sc.reduce_sum(exp_x, dim, keepdim=True)
+        # Avoid aggressive simplify to keep non-comparable symbolic terms intact
+        expr = exp_x / sum_exp
+        # 展示时用节点名（如 probs），避免在公式里展开 exp/sum
+        super().__init__(name, *src.shape, inputs=[src], expr=expr, display_expr=sc.symbol(name))
+        self.src = src
+        self.dim = dim
+
+    def backward(self):
+        self._grad = sc.accumulate(self._grads)
+        # s * (g - sum(g*s))
+        gs = sc.multiply(self._grad, self.expr)
+        sum_gs = sc.reduce_sum(gs, self.dim, keepdim=True)
+        src_grad = sc.multiply(self.expr, sc.subtract(self._grad, sum_gs))
+        self.src._grads.append(src_grad)
+        self.src.backward()
+
+
+class Max(Tensor):
+    def __init__(self, lhs, rhs, name: str = None):
+        lhs = _as_tensor(lhs)
+        rhs = _as_tensor(rhs)
+        lhs, rhs, out_shape = _maybe_broadcast(lhs, rhs)
+        if name is None:
+            name = f"{lhs.name}_max_{rhs.name}"
+        expr = sc.maximum(lhs.display_expr, rhs.display_expr)
+        super().__init__(name, *out_shape, inputs=[lhs, rhs], expr=expr, display_expr=sc.symbol(name))
+        self.lhs = lhs
+        self.rhs = rhs
+
+    def backward(self):
+        self._grad = sc.accumulate(self._grads)
+        # masks using Heaviside for symmetrical tie case
+        lhs_mask = sc.heaviside(sc.subtract(self.lhs.display_expr, self.rhs.display_expr))
+        rhs_mask = sc.heaviside(sc.subtract(self.rhs.display_expr, self.lhs.display_expr))
+        self.lhs._grads.append(sc.multiply(self._grad, lhs_mask))
+        self.rhs._grads.append(sc.multiply(self._grad, rhs_mask))
+        self.lhs.backward()
+        self.rhs.backward()
+
+
+class CrossEntropy(Tensor):
+    def __init__(self, logits: Tensor, target: Tensor, dim: int = -1, name: str = None):
+        if logits.shape != target.shape:
+            raise ValueError(f"logits shape {logits.shape} and target shape {target.shape} must match")
+        self.softmax = logits if isinstance(logits, Softmax) else Softmax(logits, dim=dim, name=None)
+        rank = len(target.shape)
+        dim = dim + rank if dim < 0 else dim
+        out_shape = target.shape[:dim] + target.shape[dim + 1:]
+        if name is None:
+            name = f"{logits.name}_cross_entropy"
+        # -sum(target * log(softmax), dim)
+        expr = sc.negative(sc.reduce_sum(sc.multiply(target.expr, sc.log(self.softmax.expr)), dim, keepdim=False))
+        super().__init__(name, *out_shape, inputs=[self.softmax, target], expr=expr, display_expr=sc.symbol(name))
+        self.target = target
+        self.dim = dim
+
+    def backward(self):
+        self._grad = sc.accumulate(self._grads)
+        soft = self.softmax.expr
+        # grad w.r.t logits: G * (soft - target)  (softmax+CE简化)
+        grad_logits = sc.multiply(self._grad, sc.subtract(soft, self.target.expr))
+        self.softmax.src._grads.append(grad_logits)
+        # grad w.r.t target: -G * log(soft)
+        grad_target = sc.negative(sc.multiply(self._grad, sc.log(soft)))
+        self.target._grads.append(grad_target)
+        self.softmax.src.backward()
+        self.target.backward()
